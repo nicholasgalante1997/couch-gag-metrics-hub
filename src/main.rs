@@ -58,16 +58,25 @@ fn handle_connection(mut stream: TcpStream) {
 
     // create a vec of tuple<String, String> to load headers
     let mut headers: Vec<(String, String)> = Vec::new();
-    headers.push((
-        String::from("x-ulysses-metr-id"),
-        String::from("ikebroflovski"),
-    ));
 
     // cors headers
     headers.push((
         String::from("Access-Control-Allow-Origin"),
         String::from("*"),
     ));
+    headers.push((
+      String::from("Access-Control-Request-Methods"),
+      String::from("*")
+    ));
+    headers.push((
+      String::from("Access-Control-Allow-Methods"),
+      String::from("OPTIONS, GET, POST")
+    ));
+    headers.push((
+      String::from("Access-Control-Allow-Headers"),
+      String::from("*")
+    ));
+    
     // content type header
     headers.push((
         String::from("Content-Type"),
@@ -129,6 +138,8 @@ fn handle_connection(mut stream: TcpStream) {
         value: metric_value
       };
     }
+
+    println!("{}", response);
 
     stream.write(response.as_bytes()).unwrap();
     stream.flush().unwrap();
