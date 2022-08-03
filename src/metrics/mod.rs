@@ -5,7 +5,7 @@ pub mod metric {
         ButtonClick,
         Share,
         Error,
-        Base
+        Base,
     }
 
     pub struct Metric {
