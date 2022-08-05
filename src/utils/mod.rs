@@ -2,21 +2,37 @@ pub mod utils {
 
     use crate::metrics::metric::MetricName;
     use crate::url::url::ReqUrl;
+    use std::result::Result;
     use std::fs::File;
-    use std::fs::*;
     use std::io::prelude::*;
+    use std::io::Error;
 
     // File utils
 
-    pub fn file_reader(path: &str) -> File {
-        let f = File::open(path);
-        let f = match f {
-            Ok(file) => file,
-            Err(error) => {
-                panic!("Problem opening file {:?}, with error {:?}", path, error)
-            }
-        };
-        f
+    // https://doc.rust-lang.org/std/result/
+    pub fn file_reader(path: &str) -> Result<String, Error> {
+
+        // https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#a-shortcut-for-propagating-errors-the--operator
+
+        let mut f = File::open(path)?;
+        let mut s = String::new();
+        f.read_to_string(&mut s)?;
+
+        // https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#propagating-errors
+
+        // let f = match f { 
+        //     Ok(file) => file,
+        //     Err(error) => {
+        //         return Err(error)
+        //     }
+        // };
+
+        // let f = match f.read_to_string(&mut s) {
+        //     Ok(_) => Ok(s),
+        //     Err(e) => Err(e)
+        // };
+
+        Ok(s)
     }
 
     pub fn get_key_value_pair_from_env(file_contents: String, key: &str) -> String {
@@ -41,11 +57,18 @@ pub mod utils {
 
     pub fn get_env_file() -> String {
         // load .env variables
-        let mut env_file: File = file_reader(".env");
+        let env_file: Result<String, Error> = file_reader(".env");
+
         // create an empty string to load the file contents into
         let mut contents = String::new();
-        // pass the mut string reference to read_to_string(...) which copies file contents to string
-        env_file.read_to_string(&mut contents).unwrap();
+
+        if env_file.is_err() {
+            let safe_error: Result<String, Error> = env_file.or_else(|err| Ok(format!("{}::{}", err.kind(), err.to_string())));
+            contents = safe_error.and_then(|s| Ok(s)).unwrap();
+        } else {
+            contents = env_file.unwrap();
+        }
+
 
         contents
     }
@@ -201,4 +224,5 @@ pub mod utils {
             }
         }
     }
+    
 }
