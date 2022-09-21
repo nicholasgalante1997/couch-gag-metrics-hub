@@ -57,7 +57,7 @@ fn handle_connection(mut stream: TcpStream) {
 
     // store the request in a Clone-on-write<_, String> (smart pointer type)
     let request = String::from_utf8_lossy(&buffer[..]);
-    println!("Request: {}", request);
+    println!("Request: {} \nend req\n", request);
 
     // create a vec of tuple<String, String> to load headers
     let mut headers: Vec<(String, String)> = Vec::new();
@@ -93,7 +93,7 @@ fn handle_connection(mut stream: TcpStream) {
     let mut method = String::new();
     get_http_method(&request.clone().to_string(), &mut method);
 
-    println!("{}", method);
+    println!("method: {}\nend method\n", method);
 
     // get the path off of the request
     let req_url = get_url_from_req(&request.clone().to_string());

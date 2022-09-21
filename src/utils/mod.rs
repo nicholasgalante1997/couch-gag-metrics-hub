@@ -13,24 +13,11 @@ pub mod utils {
     pub fn file_reader(path: &str) -> Result<String, Error> {
 
         // https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#a-shortcut-for-propagating-errors-the--operator
+        // https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#propagating-errors
 
         let mut f = File::open(path)?;
         let mut s = String::new();
         f.read_to_string(&mut s)?;
-
-        // https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#propagating-errors
-
-        // let f = match f { 
-        //     Ok(file) => file,
-        //     Err(error) => {
-        //         return Err(error)
-        //     }
-        // };
-
-        // let f = match f.read_to_string(&mut s) {
-        //     Ok(_) => Ok(s),
-        //     Err(e) => Err(e)
-        // };
 
         Ok(s)
     }
@@ -63,12 +50,11 @@ pub mod utils {
         let mut contents = String::new();
 
         if env_file.is_err() {
-            let safe_error: Result<String, Error> = env_file.or_else(|err| Ok(format!("{}::{}", err.kind(), err.to_string())));
+            let safe_error: Result<String, Error> = env_file.or_else(|err| Ok(format!("{:?}::{}", err.kind(), err.to_string())));
             contents = safe_error.and_then(|s| Ok(s)).unwrap();
         } else {
             contents = env_file.unwrap();
         }
-
 
         contents
     }
@@ -126,6 +112,14 @@ pub mod utils {
         let request_vec: Vec<&str> = req.split("\r\n").collect();
         let request_line = request_vec[0];
         let split_request_line: Vec<&str> = request_line.split(" ").collect();
+
+        if split_request_line.len() <= 1 {
+            return ReqUrl {
+                path: String::from(split_request_line[0]),
+                query_parameters: vec![]
+            }
+        }
+        
         let path_unsanitized = split_request_line[1];
         let path_vec: Vec<&str> = path_unsanitized.split("?").collect();
         let sanitized_path = path_vec[0];

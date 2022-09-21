@@ -13,4 +13,14 @@ pub mod metric {
         pub subfield: String,
         pub value: u8,
     }
+
+    impl Metric {
+        fn get_metric(m_type: MetricName, s: String, v: u8) -> Metric {
+            Metric {
+                metric_type: m_type,
+                subfield: s,
+                value: v
+            }
+        }
+    }
 }
