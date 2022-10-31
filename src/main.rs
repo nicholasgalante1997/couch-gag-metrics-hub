@@ -29,7 +29,8 @@ fn main() {
     // Because we’re writing a basic server just for learning purposes, we won’t worry about handling these kinds of errors;
     // instead, we use .unwrap() to stop the program if errors happen.
 
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    // https://blog.logrocket.com/packaging-a-rust-web-service-using-docker/#:~:text=The%20code%20for%20the%20basic%20web%20app%20isn%E2%80%99t%20particularly%20exciting.%20However%2C%20it%E2%80%99s%20important%20to%20note%20the%20criticality%20of%20the%200.0.0.0%20when%20binding%20the%20server%20to%20an%20IP%20and%20port.%20Using%20127.0.0.1%20or%20localhost%20here%20won%E2%80%99t%20work%20from%20inside%20docker. 
+    let listener: TcpListener = TcpListener::bind("0.0.0.0:7878").unwrap();
 
     // The incoming method on TcpListener returns an iterator that gives us a sequence of streams
     // (more specifically, streams of type TcpStream).
@@ -56,7 +57,7 @@ fn handle_connection(mut stream: TcpStream) {
 
     // store the request in a Clone-on-write<_, String> (smart pointer type)
     let request = String::from_utf8_lossy(&buffer[..]);
-    println!("Request: {} \nend req\n", request);
+    println!("Request: {} \n", request);
 
     // create a vec of tuple<String, String> to load headers
     let mut headers: Vec<(String, String)> = Vec::new();
@@ -91,8 +92,6 @@ fn handle_connection(mut stream: TcpStream) {
     // create an empty string to hold the result of get_http_method
     let mut method = String::new();
     get_http_method(&request.clone().to_string(), &mut method);
-
-    println!("method: {}\nend method\n", method);
 
     // get the path off of the request
     let req_url = get_url_from_req(&request.clone().to_string());
@@ -149,8 +148,8 @@ fn handle_connection(mut stream: TcpStream) {
 
         response.push_str("\r\n\r\n"); // append CRLF
         response.push_str("{"); // begin json 
-        response.push_str(format!("\"METRIC_SUBFIELD\":\"{}\"", metric.subfield).as_str());
-        response.push_str(format!("\"METRIC_VALUE\":\"{}\"", metric.value).as_str());
+        response.push_str(format!("\"METRIC_SUBFIELD\":\"{}\",", metric.subfield).as_str());
+        response.push_str(format!("\"METRIC_VALUE\":\"{}\",", metric.value).as_str());
         response.push_str(format!("\"METRIC_TARGET\":\"{}\"", metric.target).as_str());
         response.push_str("}");
         
