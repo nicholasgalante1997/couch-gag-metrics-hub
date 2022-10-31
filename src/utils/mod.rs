@@ -1,6 +1,5 @@
 pub mod utils {
 
-    use crate::metrics::metric::MetricName;
     use crate::url::url::ReqUrl;
     use std::result::Result;
     use std::fs::File;
@@ -57,52 +56,6 @@ pub mod utils {
         }
 
         contents
-    }
-
-    // Query param utils
-
-    pub fn get_val_off_query_params(req_url: &ReqUrl) -> u8 {
-        let mut val = 0;
-        for req_param in req_url.query_parameters.clone() {
-            if req_param.0.contains("value") {
-                val = req_param.1.parse::<u8>().unwrap();
-            }
-        }
-        val
-    }
-
-    pub fn get_metric_subfield_off_query_params(req_url: &ReqUrl) -> String {
-        let mut msg = String::new();
-        for req_param in req_url.query_parameters.clone() {
-            if req_param.0.contains("subfield") {
-                msg = String::from(req_param.1);
-            }
-        }
-        msg
-    }
-
-    pub fn get_metric_type_off_query_param(req_url: &ReqUrl) -> MetricName {
-        let mut metric_type: MetricName = MetricName::Base;
-
-        for req_param in req_url.query_parameters.clone() {
-            if req_param.0.contains("metric") {
-                metric_type = {
-                    if req_param.1.eq("story-view") {
-                        MetricName::StoryView
-                    } else if req_param.1.eq("page-view") {
-                        MetricName::PageView
-                    } else if req_param.1.eq("share") {
-                        MetricName::Share
-                    } else if req_param.1.eq("button-click") {
-                        MetricName::ButtonClick
-                    } else {
-                        MetricName::Error
-                    }
-                }
-            }
-        }
-
-        metric_type
     }
 
     // request utils

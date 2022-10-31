@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
@@ -119,12 +118,15 @@ fn handle_connection(mut stream: TcpStream) {
     // create our ideal response, handle errors later
     let mut response = String::from("HTTP/1.1 200 OK\r\n");
 
+    // if we do have errors, reassign the response protocol line to 500
     if errors.len() > 0 {
         response = String::from("HTTP/1.1 500 Internal Server Error\r\n");
     }
 
+    // add the cors headers to the response string
     add_headers_to_response(&mut response, &headers);
 
+    // if we have errors processing the request
     if errors.len() > 0 {
         let final_index = errors.len() - 1;
         response.push_str("\r\n\r\n"); // append CRLF
@@ -137,17 +139,22 @@ fn handle_connection(mut stream: TcpStream) {
         }
         response.push_str("}") // end json
     } else {
-        let metric_type = get_metric_type_off_query_param(&req_url);
-        let metric_subfield = get_metric_subfield_off_query_params(&req_url);
-        let metric_value = get_val_off_query_params(&req_url);
-        let _metric = Metric {
-            metric_type: metric_type,
-            subfield: metric_subfield,
-            value: metric_value,
-        };
-    }
+        let metric_type = Metric::get_metric_type_off_query_param(&req_url);
+        let metric_subfield = Metric::get_metric_subfield_off_query_params(&req_url);
+        let metric_value = Metric::get_val_off_query_params(&req_url);
+        let metric_target = Metric::get_target_string_off_query_params(&req_url);
 
-    println!("Response:\n{}", response);
+        let metric = Metric::get_metric(metric_type, metric_subfield, metric_target, metric_value);
+
+
+        response.push_str("\r\n\r\n"); // append CRLF
+        response.push_str("{"); // begin json 
+        response.push_str(format!("\"METRIC_SUBFIELD\":\"{}\"", metric.subfield).as_str());
+        response.push_str(format!("\"METRIC_VALUE\":\"{}\"", metric.value).as_str());
+        response.push_str(format!("\"METRIC_TARGET\":\"{}\"", metric.target).as_str());
+        response.push_str("}");
+        
+    }
 
     stream.write(response.as_bytes()).unwrap();
     stream.flush().unwrap();
