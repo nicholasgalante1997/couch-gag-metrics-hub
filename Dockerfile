@@ -1,10 +1,14 @@
-FROM rust:1.31
+FROM rust:1.65.0
 
 RUN mkdir -p /couch-gag/metrics-hub 
 
 WORKDIR /couch-gag/metrics-hub
 
-COPY . .
+COPY ./src/ ./src/
+COPY ./.env .
+COPY ./Cargo.toml .
+COPY ./Cargo.lock .
+COPY ./README.md .
 
 RUN cargo build --release
 
