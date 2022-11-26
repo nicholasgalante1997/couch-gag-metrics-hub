@@ -8,4 +8,6 @@ COPY . .
 
 RUN cargo build --release
 
+EXPOSE 7878
+
 CMD ["./target/release/couch-gag-metrics-hub"]

@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  couch-gag-metrics-hub:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - '7878:7878'
+    image: couch-gag-metrics-hub:stable
+    networks:
+      - couch-gag
+
+networks:
+  couch-gag:
