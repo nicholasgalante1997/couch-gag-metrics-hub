@@ -2,20 +2,33 @@ use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
 
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+extern crate serde_json;
+
+use std::collections::HashMap;
+
 use crate::metrics::metric::Metric;
 use crate::utils::utils::*;
+use crate::http_response::http_response::HttpResponse;
+use crate::cors::cors::add_cors_to_headers;
+use crate::content_type::content_type::add_content_type_to_headers;
 
+pub mod cors;
+pub mod content_type;
+pub mod http_constants;
+pub mod http_response;
 pub mod metrics;
 pub mod utils;
 pub mod url;
 
-/** This does not make use of Rocket.
- * In fact, I'm ashamed to say I've never even looked at their docs/source code
- * We (I) may elect to lean on them for **loose** inspiration of structs */
-
+/**
+* Main Entry Point of the Microservice;
+*/
 fn main() {
     // creates an instance of a TCPListener
-    // This code will listen at the address 127.0.0.1:7878 for incoming TCP streams,
+    // This code will listen at the address ::7878 for incoming TCP streams,
     // which we can access via invoking .incoming() on listener which returns an iterator (see below)
 
     // The bind function in this scenario works like the new function in that it will return a new TcpListener instance.
@@ -37,8 +50,8 @@ fn main() {
     // A single stream represents an open connection between the client and the server.
     // A connection is the name for the full request and response process in which a client connects to the server,
     // the server generates a response, and the server closes the connection.
-    // As such, TcpStream will read from itself to see what the client sends,
-    // and then allow us to write our response to the stream.
+    // As such, TcpStream will read from itself to see what the client sends (Request),
+    // and then allow us to write our response to the stream (Response).
     // Overall, this for loop will process each connection in turn and produce a series of streams for us to handle.
 
     for stream in listener.incoming() {
@@ -49,55 +62,23 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    // creates a mutable Array of 1024 elements. Every element is 0;
-    // we'll use this buffer to store the stream_read
+
+    // WORKING WITH THE REQUEST 
     let mut buffer = [0; 1024];
-    // pull bytes from the stream source and load them into the "buffer"
     stream.read(&mut buffer).unwrap();
 
     // store the request in a Clone-on-write<_, String> (smart pointer type)
     let request = String::from_utf8_lossy(&buffer[..]);
     println!("Request: {} \n", request);
 
-    // create a vec of tuple<String, String> to load headers
-    let mut headers: Vec<(String, String)> = Vec::new();
-
-    // cors headers
-    headers.push((
-        String::from("Access-Control-Allow-Origin"),
-        String::from("*"),
-    ));
-    headers.push((
-        String::from("Access-Control-Request-Methods"),
-        String::from("*"),
-    ));
-    headers.push((
-        String::from("Access-Control-Allow-Methods"),
-        String::from("OPTIONS, GET, POST"),
-    ));
-    headers.push((
-        String::from("Access-Control-Allow-Headers"),
-        String::from("*"),
-    ));
-
-    // content type header
-    headers.push((
-        String::from("Content-Type"),
-        String::from("application/json"),
-    ));
-
-    // create a vec to store possible server errors to append to body
     let mut errors: Vec<(String, String)> = Vec::new();
 
-    // create an empty string to hold the result of get_http_method
     let mut method = String::new();
     get_http_method(&request.clone().to_string(), &mut method);
 
-    // get the path off of the request
     let req_url = get_url_from_req(&request.clone().to_string());
     let path = get_path(&req_url);
 
-    // handle an attempt to access a path we havent defined
     if !is_valid_path(&path) {
         let error = String::from("[Error] Attempt to access an inaccessible path.");
         errors.push((String::from("PathError"), error));
@@ -113,47 +94,45 @@ fn handle_connection(mut stream: TcpStream) {
         let error = String::from("[Error]: Invalid ulysses key.");
         errors.push((String::from("CredentialsError"), error));
     }
+    
+    // WORKING WITH THE RESPONSE    
+    let mut headers_hashmap: HashMap<String, String> = HashMap::new();
+    add_cors_to_headers(&mut headers_hashmap);
+    add_content_type_to_headers(&mut headers_hashmap);
 
-    // create our ideal response, handle errors later
-    let mut response = String::from("HTTP/1.1 200 OK\r\n");
+    let mut status_code = 200;
+    let mut body = String::new();
 
-    // if we do have errors, reassign the response protocol line to 500
+    // if we do have errors, reassign status to 500, update body
     if errors.len() > 0 {
-        response = String::from("HTTP/1.1 500 Internal Server Error\r\n");
-    }
-
-    // add the cors headers to the response string
-    add_headers_to_response(&mut response, &headers);
-
-    // if we have errors processing the request
-    if errors.len() > 0 {
-        let final_index = errors.len() - 1;
-        response.push_str("\r\n\r\n"); // append CRLF
-        response.push_str("{"); // begin json
-        for error in errors.iter() {
-            response.push_str(&*format!("\"{}\":\"{}\"", error.0, error.1));
-            if error != errors.get(final_index).unwrap() {
-                response.push_str(",");
-            }
-        }
-        response.push_str("}") // end json
+        let mut error_hashmap: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        error_hashmap.insert(
+            String::from("errors"),
+            errors
+        );
+        status_code = 500;
+        body = serde_json::to_string(&error_hashmap).unwrap_or(String::new())
     } else {
         let metric_type = Metric::get_metric_type_off_query_param(&req_url);
         let metric_subfield = Metric::get_metric_subfield_off_query_params(&req_url);
         let metric_value = Metric::get_val_off_query_params(&req_url);
         let metric_target = Metric::get_target_string_off_query_params(&req_url);
-
         let metric = Metric::get_metric(metric_type, metric_subfield, metric_target, metric_value);
-
-
-        response.push_str("\r\n\r\n"); // append CRLF
-        response.push_str("{"); // begin json 
-        response.push_str(format!("\"METRIC_SUBFIELD\":\"{}\",", metric.subfield).as_str());
-        response.push_str(format!("\"METRIC_VALUE\":\"{}\",", metric.value).as_str());
-        response.push_str(format!("\"METRIC_TARGET\":\"{}\"", metric.target).as_str());
-        response.push_str("}");
-        
+        let mut metric_hashmap: HashMap<String, Metric> = HashMap::new();
+        metric_hashmap.insert(
+            String::from("Metric"),
+            metric
+        );
+        body = serde_json::to_string(&metric_hashmap).unwrap_or(String::new());
     }
+
+    let http_response = HttpResponse {
+        body,
+        headers: headers_hashmap,
+        status: status_code
+    };
+
+    let response = http_response.build();
 
     stream.write(response.as_bytes()).unwrap();
     stream.flush().unwrap();

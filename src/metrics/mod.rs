@@ -1,7 +1,9 @@
 pub mod metric {
 
     use crate::url::url::ReqUrl;
+    use serde::{Serialize, Serializer, ser::SerializeStruct};
 
+    #[derive(Serialize)]
     pub enum MetricName {
         StoryView,
         PageView,
@@ -16,6 +18,20 @@ pub mod metric {
         pub subfield: String,
         pub target: String,
         pub value: u8,
+    }
+
+    impl Serialize for Metric {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut state = serializer.serialize_struct("Metric", 4)?;
+            state.serialize_field("metric_type", &self.metric_type)?;
+            state.serialize_field("subfield", &self.subfield)?;
+            state.serialize_field("target", &self.target)?;
+            state.serialize_field("value", &self.value)?;
+            state.end()
+        }
     }
 
     impl Metric {
