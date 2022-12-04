@@ -11,13 +11,15 @@ use std::collections::HashMap;
 
 use crate::metrics::metric::Metric;
 use crate::utils::utils::*;
+use crate::http_request::http_request_base_kit::*;
 use crate::http_response::http_response::HttpResponse;
-use crate::cors::cors::add_cors_to_headers;
-use crate::content_type::content_type::add_content_type_to_headers;
+use crate::cors::cors_base_kit::CorsHeaders;
+use crate::content_type::content_type_base_kit::ContentHeaders;
 
 pub mod cors;
 pub mod content_type;
 pub mod http_constants;
+pub mod http_request;
 pub mod http_response;
 pub mod metrics;
 pub mod utils;
@@ -43,7 +45,20 @@ fn main() {
     // instead, we use .unwrap() to stop the program if errors happen.
 
     // https://blog.logrocket.com/packaging-a-rust-web-service-using-docker/#:~:text=The%20code%20for%20the%20basic%20web%20app%20isn%E2%80%99t%20particularly%20exciting.%20However%2C%20it%E2%80%99s%20important%20to%20note%20the%20criticality%20of%20the%200.0.0.0%20when%20binding%20the%20server%20to%20an%20IP%20and%20port.%20Using%20127.0.0.1%20or%20localhost%20here%20won%E2%80%99t%20work%20from%20inside%20docker. 
-    let listener: TcpListener = TcpListener::bind("0.0.0.0:7878").unwrap();
+
+    // if, for whatever reason, the result of the ::bind operation is an Error
+    // we must cease all operations and fail process
+    // most* other error cases must be handled in non panic!-ing ways as to not crash the server
+    let listener_result: Result<TcpListener, _> = TcpListener::bind("0.0.0.0:7878");
+    let listener: TcpListener = match listener_result {
+        Ok(listener) => listener,
+        Err(e) => {
+            println!("Error thrown during server instantiation;");
+            let error_string = format!("[error]: {}", e);
+            println!("{}", &error_string);
+            panic!("{}", error_string);
+        }
+    };
 
     // The incoming method on TcpListener returns an iterator that gives us a sequence of streams
     // (more specifically, streams of type TcpStream).
@@ -57,27 +72,30 @@ fn main() {
     for stream in listener.incoming() {
         let stream: TcpStream = stream.unwrap();
 
-        handle_connection(stream);
+        handle_connection(stream); // handle_connection destroys the stream & therefore should take ownership
     }
 }
 
 fn handle_connection(mut stream: TcpStream) {
 
-    // WORKING WITH THE REQUEST 
+    // WORKING WITH THE REQUEST
+     
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
 
+    let http_request_struct_inst = parse_http_request_from_buffer(&String::from_utf8_lossy(&buffer[..]));
+    let req_url_struct_inst = get_url_from_req(&String::from_utf8_lossy(&buffer[..]).to_string());
+
     // store the request in a Clone-on-write<_, String> (smart pointer type)
-    let request = String::from_utf8_lossy(&buffer[..]);
-    println!("Request: {} \n", request);
+    // let request = String::from_utf8_lossy(&buffer[..]);
+    // println!("Request: {} \n", request);
 
     let mut errors: Vec<(String, String)> = Vec::new();
 
-    let mut method = String::new();
-    get_http_method(&request.clone().to_string(), &mut method);
+    let method = http_request_struct_inst.get_http_method();
+    // get_http_method(&request.clone().to_string(), &mut method);
 
-    let req_url = get_url_from_req(&request.clone().to_string());
-    let path = get_path(&req_url);
+    let path = http_request_struct_inst.get_path();
 
     if !is_valid_path(&path) {
         let error = String::from("[Error] Attempt to access an inaccessible path.");
@@ -90,15 +108,17 @@ fn handle_connection(mut stream: TcpStream) {
     // if we hit an options request, we bypass ulysses key, but to perform operations,
     // we'll run this has_valid_ulysses_key_check before pumping metrics
     // handle an unauthorized attempt to hit the service
-    if method != "OPTIONS" && !has_valid_ulysses_key(&request.clone().to_string()) {
+    if method != "OPTIONS" && !has_valid_ulysses_key(&http_request_struct_inst) {
         let error = String::from("[Error]: Invalid ulysses key.");
         errors.push((String::from("CredentialsError"), error));
     }
     
-    // WORKING WITH THE RESPONSE    
+    // WORKING WITH THE RESPONSE 
+    
     let mut headers_hashmap: HashMap<String, String> = HashMap::new();
-    add_cors_to_headers(&mut headers_hashmap);
-    add_content_type_to_headers(&mut headers_hashmap);
+
+    CorsHeaders::add_cors_to_headers(&mut headers_hashmap);
+    ContentHeaders::add_content_type_to_headers(&mut headers_hashmap);
 
     let mut status_code = 200;
     let mut body = String::new();
@@ -113,10 +133,10 @@ fn handle_connection(mut stream: TcpStream) {
         status_code = 500;
         body = serde_json::to_string(&error_hashmap).unwrap_or(String::new())
     } else {
-        let metric_type = Metric::get_metric_type_off_query_param(&req_url);
-        let metric_subfield = Metric::get_metric_subfield_off_query_params(&req_url);
-        let metric_value = Metric::get_val_off_query_params(&req_url);
-        let metric_target = Metric::get_target_string_off_query_params(&req_url);
+        let metric_type = Metric::get_metric_type_off_query_param(&req_url_struct_inst);
+        let metric_subfield = Metric::get_metric_subfield_off_query_params(&req_url_struct_inst);
+        let metric_value = Metric::get_val_off_query_params(&req_url_struct_inst);
+        let metric_target = Metric::get_target_string_off_query_params(&req_url_struct_inst);
         let metric = Metric::get_metric(metric_type, metric_subfield, metric_target, metric_value);
         let mut metric_hashmap: HashMap<String, Metric> = HashMap::new();
         metric_hashmap.insert(

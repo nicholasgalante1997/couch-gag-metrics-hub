@@ -1,5 +1,6 @@
 pub mod utils {
 
+    use crate::http_request::http_request_base_kit::HttpRequest;
     use crate::url::url::ReqUrl;
     use std::result::Result;
     use std::fs::File;
@@ -129,21 +130,14 @@ pub mod utils {
 
     // Validity check
 
-    pub fn has_valid_ulysses_key(request: &String) -> bool {
+    pub fn has_valid_ulysses_key(request: &HttpRequest) -> bool {
         let file_contents = get_env_file();
         // this is the flag that gets passed back as the return value
 
         let ulysses_key = get_key_value_pair_from_env(file_contents, "ULYSSES_HASHED_KEY");
         // get headers off the request
 
-        let req_headers: Vec<(&str, &str)> = get_headers_off_req(request);
-        let mut req_ulysses_key = String::new();
-        for header in req_headers.iter() {
-            if header.0.contains("x-ulysses-key") {
-                req_ulysses_key = String::from(header.1);
-                println!("req uly key: {}", req_ulysses_key)
-            }
-        }
+        let req_ulysses_key = request.get_header_by_key(String::from("x-ulysses-key"));
         ulysses_key == req_ulysses_key
     }
 

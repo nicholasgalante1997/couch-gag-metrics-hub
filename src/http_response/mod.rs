@@ -1,6 +1,6 @@
 pub mod http_response {
     use std::collections::HashMap;
-    use crate::http_constants::http_base_kit::http_constants;
+    use crate::http_constants::http_base_kit::http_constants::HttpConstants;
 
     pub struct HttpResponse {
         pub status: usize,
@@ -10,15 +10,15 @@ pub mod http_response {
 
     impl HttpResponse {
         pub fn build(&self) -> String {
-            let crlf = http_constants::get_crlf();
+            let crlf = HttpConstants::get_crlf();
 
             let mut response_string = String::new();
             let mut status_line = String::new();
 
             if self.status == 200 {
-                status_line = http_constants::get_success_get_protocol_http_prefix();
+                status_line = HttpConstants::get_success_get_protocol_http_prefix();
             } else {
-                status_line = http_constants::get_error_server_internal_protocol_http_prefix();
+                status_line = HttpConstants::get_error_server_internal_protocol_http_prefix();
             };
 
             // scaffolding headers onto response
